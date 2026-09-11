@@ -98,6 +98,11 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [sidebarCollapsed]);
 
+  // The Shlawp screen is its own full-bleed world: no sidebar, no header.
+  if (isChatRoute) {
+    return <HeaderActionsProvider>{children}</HeaderActionsProvider>;
+  }
+
   const ownsToolbar = routeOwnsToolbar(location.pathname);
   function openAskAgentFullscreen() {
     focusAgentChat();

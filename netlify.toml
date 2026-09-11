@@ -1,5 +1,9 @@
 [build]
-command = "export DATABASE_URL=\"${NETLIFY_DATABASE_URL:-${DATABASE_URL:-$NETLIFY_DB_URL}}\" && NITRO_PRESET=netlify pnpm build && if [ \"${CONTEXT:-}\" = \"production\" ]; then pnpm migrate:production; fi"
+# The migration runs after the build but must not gate publishing. A schema
+# step that cannot reach the database is a database problem; holding the whole
+# site hostage to it meant front-end fixes sat unpublished behind it for days.
+# A failure is loud in the log and leaves the previous schema untouched.
+command = "export DATABASE_URL=\"${NETLIFY_DATABASE_URL:-${DATABASE_URL:-$NETLIFY_DB_URL}}\" && NITRO_PRESET=netlify pnpm build && if [ \"${CONTEXT:-}\" = \"production\" ]; then pnpm migrate:production || echo \"##### MIGRATION FAILED - site published anyway; database calls will fail until the connection string is fixed #####\"; fi"
 publish = "dist"
 functions = ".netlify/functions-internal"
 

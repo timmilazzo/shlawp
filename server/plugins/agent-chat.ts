@@ -5,6 +5,8 @@ import {
 } from "@agent-native/core/server";
 
 import actionsRegistry from "../../.generated/actions-registry.js";
+import { SECOND_OPINION_SYSTEM_PROMPT } from "../prompts/second-opinion.js";
+import { SHLAWP_SYSTEM_PROMPT } from "../prompts/shlawp.js";
 
 const INITIAL_TOOL_NAMES = ["view-screen", "navigate", "hello"];
 
@@ -13,9 +15,11 @@ export default createAgentChatPlugin({
   actions: loadActionsFromStaticRegistry(actionsRegistry),
   initialToolNames: INITIAL_TOOL_NAMES,
   resolveOrgId: async (event) => (await getOrgContext(event)).orgId,
-  systemPrompt: `You are the Chat app agent.
-
-This is a minimal chat-first Agent-Native app. The chat is the product surface, and actions are the contract shared by chat, UI, HTTP, MCP, A2A, and CLI.
-
-Use actions as the source of truth. Start by inspecting the current screen when context matters. When the user asks to extend this app, keep the change small and agent-native: add or update actions, expose useful UI, and keep application state/navigation visible to the agent.`,
+  // Shlawp mode is the default. SHLAWP_MODE=second-opinion flips the server
+  // to the honest agent. The per-thread toggle in the UI is the next step —
+  // see SHLAWP.md ("The turn").
+  systemPrompt:
+    process.env.SHLAWP_MODE === "second-opinion"
+      ? SECOND_OPINION_SYSTEM_PROMPT
+      : SHLAWP_SYSTEM_PROMPT,
 });

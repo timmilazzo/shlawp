@@ -1,32 +1,32 @@
-# Chat
+# Shlawp
 
-The minimal agent-native starter app — a clean, ChatGPT-style shell with chat at
-the center, durable threads, standard app navigation, auth, live sync, and
-actions. Start here when you want a real browser app to build on without
-committing to a domain template.
+**Absolutely.**
 
-**Live app: [chat.agent-native.com](https://chat.agent-native.com)**
+A working Shlawp — the AI that agrees with you, from Ryan George's sketch
+["Your Boss Who Has AI Psychosis"](https://www.youtube.com/watch?v=isLWnuBkaOc) —
+with one button that turns the agreeing off.
 
-Chat is the basic agent-native app starting point. It gives you the app-agent
-loop wired end to end and one example action, so you can add your own UI, data,
-and actions on top.
+Built on [Agent-Native](https://agent-native.com) from the stock Chat template.
+Not affiliated with Ryan George. Ryan, the domain is yours if you want it.
 
-## Features
+Read [`SHLAWP.md`](./SHLAWP.md) for the concept, the page, the guardrails, and
+the launch test cases. The two prompts live in [`server/prompts/`](./server/prompts).
 
-- ChatGPT-style shell with a threads list and durable chat history.
-- Auth, live sync, and application state wired out of the box.
-- The action surface the agent and UI share, plus one example action to copy.
-- A minimal, brandable base for any domain app.
-
-## Develop locally
-
-Scaffold your own copy and run it:
+## Run it
 
 ```bash
-npx @agent-native/core@latest create my-app --standalone --template chat
-cd my-app
 pnpm install
+cp .env.example .env   # set AUTH_DISABLED=true for the public demo surface
 pnpm dev
 ```
 
-Full docs: [agent-native.com/docs/template-chat](https://agent-native.com/docs/template-chat).
+`SHLAWP_MODE=second-opinion pnpm dev` starts the honest agent instead. The
+per-thread toggle is the next thing to build — see SHLAWP.md, "The turn".
+
+## Scaffold provenance
+
+```bash
+npx @agent-native/core@0.178.1 create shlawp --standalone --template chat
+```
+
+Full framework docs: [agent-native.com/docs/template-chat](https://agent-native.com/docs/template-chat).

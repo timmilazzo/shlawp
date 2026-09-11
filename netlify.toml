@@ -4,8 +4,7 @@ publish = "dist"
 functions = ".netlify/functions-internal"
 
 [build.environment]
-GA_MEASUREMENT_ID = "G-ESF7FYXGN9"
-GTM_CONTAINER_ID = "GTM-N3WSTXZ"
+NODE_VERSION = "24"
 NITRO_PRESET = "netlify"
 NPM_CONFIG_PRODUCTION = "false"
 
@@ -13,7 +12,7 @@ NPM_CONFIG_PRODUCTION = "false"
 AGENT_NATIVE_HOSTED_HARNESS = "true"
 AGENT_NATIVE_ENABLE_KEEP_WARM = "1"
 AGENT_NATIVE_DISABLE_KEEP_WARM_BACKGROUND = "1"
-BETTER_AUTH_TRUSTED_ORIGINS = "https://starter.agent-native.com,https://chat.agent-native.com"
+BETTER_AUTH_TRUSTED_ORIGINS = "https://shlawp.com,https://www.shlawp.com"
 # Production release migrations own schema setup; request functions must skip
 # migration probes on every serverless invocation.
 AGENT_NATIVE_RELEASE_MIGRATIONS = "1"

@@ -19,6 +19,7 @@ export default createAgentChatPlugin({
   // to the honest agent. The per-thread toggle in the UI is the next step —
   // see SHLAWP.md ("The turn").
   systemPrompt:
+    // guard:allow-env-credential — prompt mode switch, not a credential
     process.env.SHLAWP_MODE === "second-opinion"
       ? SECOND_OPINION_SYSTEM_PROMPT
       : SHLAWP_SYSTEM_PROMPT,

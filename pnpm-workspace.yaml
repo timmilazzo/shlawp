@@ -3,6 +3,9 @@ allowBuilds:
   tesseract.js: true
   node-pty: true
   esbuild: true
+  "@sentry/cli": false
+  "@vgpu/adapter-node": false
+  webgpu: false
 
 overrides:
   "@tiptap/starter-kit": "3.28.0"
@@ -60,6 +63,9 @@ minimumReleaseAgeExclude:
   - "@modelcontextprotocol/node"
   - "@modelcontextprotocol/core"
   - "@modelcontextprotocol/client"
+  - '@agent-native/core@0.178.1'
+  - '@agent-native/recap-cli@0.5.29'
+  - '@agent-native/toolkit@0.19.7'
 
 packageExtensions:
   "node-pty@*":

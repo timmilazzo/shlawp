@@ -43,8 +43,8 @@ const messages = {
     composerPlaceholder: "Ask Shlawp anything",
     emptyState: "Ask it anything. It agrees.",
     footerAfter:
-      " app was super easy, barely an inconvenience. Just don't use AI to destroy human people jobs, please.",
-    footerBefore: "Building Shlawp as an ",
+      " was super easy, barely an inconvenience. Don't use AI to destroy human people jobs, please.",
+    footerBefore: "Building Shlawp with ",
     footerLink: "Agent-Native",
     orbLabel: "Shlawp",
     send: "Send",
@@ -57,6 +57,8 @@ const messages = {
     switchToText: "Type instead",
     switchToVoice: "Talk instead",
     talk: "Talk to Shlawp",
+    tributeBefore: "Unaffiliated tribute to ",
+    tributeLink: "Ryan George",
     tryAgain: "Shlawp lost the thread. Try again in a moment.",
   },
   navigation: {

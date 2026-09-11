@@ -77,6 +77,492 @@
   }
 }
 
+/* ── Shlawp ──────────────────────────────────────────────────────────────── */
+
+.shlawp-theme {
+  --background: 0 0% 0%;
+  --foreground: 225 20% 94%;
+  --card: 232 30% 6%;
+  --card-foreground: 225 20% 94%;
+  --popover: 232 30% 7%;
+  --popover-foreground: 225 20% 94%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 232 40% 5%;
+  --secondary: 232 20% 12%;
+  --secondary-foreground: 225 20% 94%;
+  --muted: 232 20% 10%;
+  --muted-foreground: 228 12% 62%;
+  --accent: 232 20% 13%;
+  --accent-foreground: 225 20% 94%;
+  --border: 232 18% 16%;
+  --input: 232 18% 18%;
+  --ring: 248 90% 72%;
+  color-scheme: dark;
+}
+
+.shlawp-stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  background: #000;
+}
+
+.shlawp-phone {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  background: #000;
+}
+
+.shlawp-phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.shlawp-phone-island {
+  display: none;
+}
+
+.shlawp-safe-top {
+  padding-top: max(env(safe-area-inset-top), 2.5rem);
+}
+
+.shlawp-safe-top-compact {
+  padding-top: max(env(safe-area-inset-top), 1rem);
+}
+
+.shlawp-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 2rem);
+}
+
+@media (min-width: 768px) {
+  .shlawp-stage {
+    align-items: center;
+    padding: 1.5rem;
+    background:
+      radial-gradient(
+        ellipse 55% 45% at 50% 48%,
+        hsl(248 70% 20% / 0.5),
+        transparent 70%
+      ),
+      #05060b;
+  }
+
+  .shlawp-phone {
+    height: min(844px, calc(100dvh - 3rem));
+    width: auto;
+    aspect-ratio: 390 / 844;
+    padding: 0.7rem;
+    border-radius: 3.4rem;
+    background: linear-gradient(150deg, #2b2d34, #0b0c10 35%, #15161b 70%, #25272d);
+    box-shadow:
+      inset 0 0 0 1px #3b3d45,
+      inset 0 0 0 3px #0a0a0d,
+      0 50px 120px -30px rgb(0 0 0 / 0.9);
+  }
+
+  .shlawp-phone-screen {
+    border-radius: 2.75rem;
+  }
+
+  .shlawp-phone-island {
+    display: block;
+    position: absolute;
+    z-index: 30;
+    top: 1.45rem;
+    left: 50%;
+    width: 6.75rem;
+    height: 1.95rem;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background: #000;
+  }
+
+  .shlawp-safe-top {
+    padding-top: 4.25rem;
+  }
+
+  .shlawp-safe-top-compact {
+    padding-top: 3.5rem;
+  }
+
+  .shlawp-safe-bottom {
+    padding-bottom: 2.25rem;
+  }
+}
+
+.shlawp-wordmark {
+  font-weight: 300;
+  letter-spacing: 0.55em;
+  /* Tracking adds trailing space after the last letter; offset it to center. */
+  margin-right: -0.55em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.82);
+}
+
+.shlawp-chat {
+  background: hsl(var(--background));
+}
+
+.shlawp-orb {
+  --orb: min(80vw, 21rem);
+  position: relative;
+  display: block;
+  width: var(--orb);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shlawp-orb[data-size="compact"] {
+  --orb: 7.25rem;
+}
+
+@media (min-width: 768px) {
+  .shlawp-orb[data-size="hero"] {
+    --orb: 18.75rem;
+  }
+}
+
+.shlawp-orb:focus-visible {
+  outline: 2px solid hsl(248 90% 76%);
+  outline-offset: 8px;
+}
+
+.shlawp-orb > span {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.shlawp-orb-glow {
+  inset: -20%;
+  background: radial-gradient(
+    circle,
+    hsl(240 95% 60% / 0.42) 0%,
+    hsl(275 90% 55% / 0.16) 42%,
+    transparent 68%
+  );
+  animation: shlawp-breathe 5s ease-in-out infinite;
+}
+
+.shlawp-orb-core {
+  inset: 3.5%;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse 34% 40% at 50% 50%,
+      hsl(228 100% 62% / 0.35),
+      transparent 100%
+    ),
+    radial-gradient(circle at 50% 42%, #1b1f52 0%, #0a0b26 55%, #02020a 100%);
+  box-shadow: inset 0 0 40px 12px rgb(0 0 0 / 0.85);
+}
+
+.shlawp-orb-head {
+  position: absolute;
+  left: 50%;
+  top: 53%;
+  width: 82%;
+  height: auto;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+  opacity: 0.94;
+  filter: saturate(1.1);
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 64% at 50% 47%,
+    #000 60%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 64% at 50% 47%,
+    #000 60%,
+    transparent 100%
+  );
+  user-select: none;
+  animation: shlawp-hover 6s ease-in-out infinite;
+}
+
+.shlawp-orb-scan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0.06) 0 1px,
+    transparent 1px 3px
+  );
+  mix-blend-mode: overlay;
+  animation: shlawp-flicker 5s steps(1) infinite;
+}
+
+.shlawp-orb-plasma {
+  inset: 0;
+  mix-blend-mode: screen;
+}
+
+.shlawp-orb-plasma-a {
+  background: conic-gradient(
+    from 0deg,
+    hsl(222 100% 60%),
+    hsl(272 95% 64%),
+    hsl(192 100% 66%),
+    hsl(330 95% 60%),
+    hsl(236 100% 64%),
+    hsl(200 100% 72%),
+    hsl(222 100% 60%)
+  );
+  -webkit-mask-image: radial-gradient(
+    circle,
+    transparent 62%,
+    #000 67%,
+    #000 70%,
+    transparent 74%
+  );
+  mask-image: radial-gradient(
+    circle,
+    transparent 62%,
+    #000 67%,
+    #000 70%,
+    transparent 74%
+  );
+  filter: blur(2px);
+  animation: shlawp-spin 9s linear infinite;
+}
+
+.shlawp-orb-plasma-b {
+  inset: 1.5%;
+  background: conic-gradient(
+    from 90deg,
+    transparent 0 8%,
+    hsl(265 100% 70% / 0.95) 17%,
+    transparent 29%,
+    hsl(195 100% 70% / 0.9) 46%,
+    transparent 57%,
+    hsl(345 100% 62% / 0.9) 71%,
+    transparent 83%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle,
+    transparent 48%,
+    #000 60%,
+    #000 69%,
+    transparent 76%
+  );
+  mask-image: radial-gradient(
+    circle,
+    transparent 48%,
+    #000 60%,
+    #000 69%,
+    transparent 76%
+  );
+  filter: blur(7px);
+  animation: shlawp-spin 6s linear infinite reverse;
+}
+
+.shlawp-orb-rim {
+  inset: 3.5%;
+  box-shadow:
+    0 0 0 1.5px hsl(210 100% 86% / 0.7),
+    0 0 20px 2px hsl(226 100% 64% / 0.6),
+    inset 0 0 24px 2px hsl(252 100% 70% / 0.45);
+}
+
+.shlawp-orb[data-mood="listening"] .shlawp-orb-glow {
+  animation-duration: 1.6s;
+}
+
+.shlawp-orb[data-mood="thinking"] .shlawp-orb-plasma-a {
+  animation-duration: 2.8s;
+}
+
+.shlawp-orb[data-mood="thinking"] .shlawp-orb-plasma-b {
+  animation-duration: 2s;
+}
+
+.shlawp-orb[data-mood="speaking"] .shlawp-orb-glow {
+  animation-duration: 0.9s;
+}
+
+.shlawp-mic {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255 / 0.78);
+  color: rgb(255 255 255 / 0.9);
+  background: transparent;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    opacity 150ms,
+    transform 150ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shlawp-mic:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.shlawp-mic:active {
+  transform: scale(0.96);
+}
+
+.shlawp-mic:focus-visible {
+  outline: 2px solid hsl(248 90% 76%);
+  outline-offset: 4px;
+}
+
+.shlawp-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.shlawp-mic-listening {
+  border-color: hsl(248 100% 80%);
+  background: hsl(248 100% 70% / 0.14);
+}
+
+.shlawp-mic-listening::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid hsl(248 100% 80% / 0.6);
+  animation: shlawp-ping 1.4s ease-out infinite;
+}
+
+.shlawp-bars {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 1.9rem;
+}
+
+.shlawp-bars-sm {
+  gap: 2px;
+  height: 1rem;
+}
+
+.shlawp-bars > span {
+  width: 2px;
+  height: 100%;
+  border-radius: 9999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.shlawp-bars > span:nth-child(1),
+.shlawp-bars > span:nth-child(5) {
+  transform: scaleY(0.4);
+}
+
+.shlawp-bars > span:nth-child(2),
+.shlawp-bars > span:nth-child(4) {
+  transform: scaleY(0.72);
+}
+
+.shlawp-mic-listening .shlawp-bars > span {
+  animation: shlawp-bar 0.9s ease-in-out infinite;
+}
+
+.shlawp-mic-listening .shlawp-bars > span:nth-child(2) {
+  animation-delay: -0.3s;
+}
+
+.shlawp-mic-listening .shlawp-bars > span:nth-child(3) {
+  animation-delay: -0.6s;
+}
+
+.shlawp-mic-listening .shlawp-bars > span:nth-child(4) {
+  animation-delay: -0.15s;
+}
+
+.shlawp-mic-listening .shlawp-bars > span:nth-child(5) {
+  animation-delay: -0.45s;
+}
+
+@keyframes shlawp-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes shlawp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shlawp-breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes shlawp-hover {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(-50%, -52%);
+  }
+}
+
+@keyframes shlawp-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  47% {
+    opacity: 0.55;
+  }
+  49% {
+    opacity: 1;
+  }
+}
+
+@keyframes shlawp-ping {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shlawp-orb *,
+  .shlawp-bars > span,
+  .shlawp-mic-listening::after {
+    animation: none !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;

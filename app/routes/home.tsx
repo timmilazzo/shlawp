@@ -1,25 +1,39 @@
 import {
   AgentChatSurface,
-  markAgentChatHomeHandoff,
+  sendToAgentChat,
 } from "@agent-native/core/client/agent-chat";
 import { useT } from "@agent-native/core/client/i18n";
-import { useEffect } from "react";
+import { useLiveTranscription } from "@agent-native/core/client/transcription/use-live-transcription";
+import { IconKeyboard, IconPlayerStopFilled } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import { PhoneFrame } from "@/components/shlawp/PhoneFrame";
+import { ShlawpOrb, type ShlawpMood } from "@/components/shlawp/ShlawpOrb";
+import {
+  ShlawpThreadBridge,
+  getShlawpThread,
+  useShlawpThread,
+} from "@/components/shlawp/thread-bridge";
+import { useShlawpVoice } from "@/components/shlawp/use-shlawp-voice";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { APP_TITLE } from "@/lib/app-config";
 import { TAB_ID } from "@/lib/tab-id";
+import { cn } from "@/lib/utils";
 
-const SEO_TITLE = `${APP_TITLE} - Open Source AI app starter with actions`;
+const SEO_TITLE = `${APP_TITLE} - Absolutely.`;
 const SEO_DESCRIPTION =
-  "Open Source starter for agent-native apps with durable chat, shared actions, UI state, tools, and a backend your agent can extend.";
+  "A tribute to Ryan George. Ask it anything. It agrees.";
 
 export function meta() {
   return [
     { title: SEO_TITLE },
-    {
-      name: "description",
-      content: SEO_DESCRIPTION,
-    },
+    { name: "description", content: SEO_DESCRIPTION },
     { property: "og:title", content: SEO_TITLE },
     { property: "og:description", content: SEO_DESCRIPTION },
     { name: "twitter:card", content: "summary" },
@@ -28,67 +42,388 @@ export function meta() {
   ];
 }
 
+type Mode = "voice" | "text";
+type Phase = "idle" | "listening" | "thinking" | "speaking";
+type Caption = { from: "you" | "shlawp"; text: string } | null;
+
+const MODE_STORAGE_KEY = "shlawp.mode";
+// Silence after the last recognized word before the turn is sent.
+const END_OF_TURN_MS = 1400;
+// Give up on a listening session that never hears anything.
+const NO_SPEECH_MS = 9000;
+// A run that never produces a reply shouldn't leave the orb thinking forever.
+const RUN_START_TIMEOUT_MS = 15_000;
+const REPLY_TIMEOUT_MS = 60_000;
+
 function chatThreadPath(threadId: string | null) {
   return threadId ? `/chat/${encodeURIComponent(threadId)}` : "/home";
 }
 
-export default function ChatRoute() {
+function useMode(voiceSupported: boolean) {
+  const [mode, setMode] = useState<Mode>("voice");
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+      if (stored === "voice" || stored === "text") setMode(stored);
+    } catch {
+      // Storage can be blocked; voice stays the default.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!voiceSupported) setMode("text");
+  }, [voiceSupported]);
+
+  const update = useCallback((next: Mode) => {
+    setMode(next);
+    try {
+      window.localStorage.setItem(MODE_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, []);
+
+  return [mode, update] as const;
+}
+
+export default function ShlawpRoute() {
   const { threadId } = useParams();
   const navigate = useNavigate();
   const t = useT();
+  const {
+    supported: voiceSupported,
+    isActive: isHearing,
+    transcript,
+    interimText,
+    start: startHearing,
+    stop: stopHearing,
+    stopAndWait,
+    getIncompleteReason,
+  } = useLiveTranscription();
+  const { unlock, speak, stop: stopSpeaking, getLevel } = useShlawpVoice();
+  const thread = useShlawpThread();
+  const [mode, setMode] = useMode(voiceSupported);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [caption, setCaption] = useState<Caption>(null);
+
+  // The assistant message id that was current when a turn was sent. A reply
+  // is any newer assistant message once the run settles.
+  const awaitingAfterRef = useRef<string | null | undefined>(undefined);
+  const sawRunRef = useRef(false);
+
   const threadUrlSync = threadId
-    ? {
-        routeThreadId: threadId,
-        getPath: chatThreadPath,
-        navigate,
-      }
+    ? { routeThreadId: threadId, getPath: chatThreadPath, navigate }
     : undefined;
 
-  useEffect(() => {
-    function handleChatRunning(event: Event) {
-      const detail = (event as CustomEvent).detail;
-      if (detail?.isRunning === true) markAgentChatHomeHandoff("chat");
-    }
+  const heard = [transcript, interimText].join(" ").trim();
 
-    window.addEventListener("agentNative.chatRunning", handleChatRunning);
-    return () =>
-      window.removeEventListener("agentNative.chatRunning", handleChatRunning);
-  }, []);
+  const sendTurn = useCallback(
+    (text: string) => {
+      awaitingAfterRef.current = getShlawpThread().assistantId;
+      sawRunRef.current = false;
+      setCaption({ from: "you", text });
+      setPhase("thinking");
+      sendToAgentChat({
+        message: text,
+        submit: true,
+        chatTarget: "local",
+        openSidebar: false,
+      });
+    },
+    [],
+  );
+
+  const finishListening = useCallback(async () => {
+    const text = (await stopAndWait(600)).trim();
+    if (!text) {
+      setPhase("idle");
+      setCaption(null);
+      return;
+    }
+    sendTurn(text);
+  }, [stopAndWait, sendTurn]);
+
+  const resetVoice = useCallback(() => {
+    stopHearing();
+    stopSpeaking();
+    awaitingAfterRef.current = undefined;
+    setPhase("idle");
+    setCaption(null);
+  }, [stopHearing, stopSpeaking]);
+
+  function handleMicPress() {
+    if (phase === "listening") {
+      void finishListening();
+      return;
+    }
+    if (phase === "speaking") {
+      stopSpeaking();
+      setPhase("idle");
+      return;
+    }
+    if (phase === "thinking") return;
+    unlock();
+    setCaption(null);
+    startHearing();
+    setPhase("listening");
+  }
+
+  function switchMode(next: Mode) {
+    resetVoice();
+    setMode(next);
+  }
+
+  // End the turn after a pause, or abandon a session that hears nothing.
+  useEffect(() => {
+    if (phase !== "listening") return;
+    const timer = window.setTimeout(
+      () => {
+        if (heard) void finishListening();
+        else {
+          stopHearing();
+          setPhase("idle");
+        }
+      },
+      heard ? END_OF_TURN_MS : NO_SPEECH_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [phase, heard, finishListening, stopHearing]);
+
+  // Recognition can stop on its own (permission denied, device lost).
+  useEffect(() => {
+    if (phase === "listening" && !isHearing && getIncompleteReason()) {
+      setPhase("idle");
+    }
+  }, [phase, isHearing, getIncompleteReason]);
+
+  // Pick up the reply once the run settles, then say it.
+  useEffect(() => {
+    if (phase !== "thinking" || awaitingAfterRef.current === undefined) return;
+    if (thread.isRunning) {
+      sawRunRef.current = true;
+      if (thread.assistantId !== awaitingAfterRef.current && thread.assistantText) {
+        setCaption({ from: "shlawp", text: thread.assistantText });
+      }
+      return;
+    }
+    const hasReply =
+      thread.assistantId !== null &&
+      thread.assistantId !== awaitingAfterRef.current &&
+      thread.assistantText;
+    if (hasReply) {
+      awaitingAfterRef.current = undefined;
+      const reply = thread.assistantText;
+      setCaption({ from: "shlawp", text: reply });
+      setPhase("speaking");
+      void speak(reply).finally(() => {
+        setPhase((current) => (current === "speaking" ? "idle" : current));
+      });
+    } else if (sawRunRef.current) {
+      awaitingAfterRef.current = undefined;
+      setPhase("idle");
+    }
+  }, [phase, thread, speak]);
+
+  useEffect(() => {
+    if (phase !== "thinking") return;
+    const giveUp = () => {
+      awaitingAfterRef.current = undefined;
+      setPhase("idle");
+    };
+    // A turn that never starts a run (e.g. no model connected) stops early.
+    const startTimer = window.setTimeout(() => {
+      if (!sawRunRef.current) giveUp();
+    }, RUN_START_TIMEOUT_MS);
+    const replyTimer = window.setTimeout(giveUp, REPLY_TIMEOUT_MS);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearTimeout(replyTimer);
+    };
+  }, [phase]);
+
+  const isVoice = mode === "voice";
+  const shownCaption: Caption =
+    phase === "listening"
+      ? heard
+        ? { from: "you", text: heard }
+        : null
+      : caption;
+  const mood: ShlawpMood = isVoice
+    ? phase
+    : thread.isRunning
+      ? "thinking"
+      : "idle";
+
+  const suggestions = [
+    t("shlawp.suggestionChips"),
+    t("shlawp.suggestionVisionary"),
+    t("shlawp.suggestionRightThing"),
+    t("shlawp.suggestionPlan"),
+    t("shlawp.suggestionAnalyst"),
+  ];
+
+  const micLabel =
+    phase === "listening"
+      ? t("shlawp.send")
+      : phase === "speaking"
+        ? t("shlawp.stop")
+        : t("shlawp.talk");
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <AgentChatSurface
-        mode="page"
-        chatViewTransition
-        className="h-full"
-        defaultMode="chat"
-        storageKey="chat"
-        threadUrlSync={threadUrlSync}
-        browserTabId={TAB_ID}
-        showHeader={false}
-        showTabBar={false}
-        dynamicSuggestions={false}
-        suggestions={[
-          t("chat.suggestionCapabilities"),
-          t("chat.suggestionCustomize"),
-          t("chat.suggestionActions"),
-        ]}
-        emptyStateText={t("chat.emptyState")}
-        emptyStateDisplay="hidden"
-        centerComposerWhenEmpty
-        composerLayoutVariant="hero"
-        composerPlaceholder={t("chat.composerPlaceholder")}
-        composerSlot={
-          <div className="mx-auto mb-5 max-w-xl px-4 text-center">
-            <h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
-              {t("chat.heroTitle")}
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {t("chat.heroDescription")}
-            </p>
+    <PhoneFrame>
+      <div className="shlawp-theme dark flex h-full flex-col bg-black text-foreground">
+        <header
+          className={cn(
+            "flex shrink-0 items-center justify-center px-6",
+            isVoice ? "shlawp-safe-top pb-2" : "shlawp-safe-top-compact pb-1",
+          )}
+        >
+          <h1
+            className={cn(
+              "shlawp-wordmark",
+              isVoice ? "text-2xl" : "text-base",
+            )}
+          >
+            {APP_TITLE}
+          </h1>
+        </header>
+
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center",
+            isVoice ? "min-h-0 flex-1" : "py-2",
+          )}
+        >
+          <ShlawpOrb
+            mood={mood}
+            size={isVoice ? "hero" : "compact"}
+            label={t("shlawp.orbLabel")}
+            getLevel={getLevel}
+          />
+        </div>
+
+        {isVoice ? (
+          <p
+            aria-live="polite"
+            className={cn(
+              "mx-auto min-h-[4.75rem] max-w-[20rem] shrink-0 px-6 text-center text-[15px] leading-6 text-balance",
+              shownCaption?.from === "you" ? "text-white/60" : "text-white/90",
+            )}
+          >
+            {shownCaption ? (
+              shownCaption.text
+            ) : phase === "idle" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  unlock();
+                  sendTurn(suggestions[0]);
+                }}
+                className="rounded-full px-3 py-1 text-white/45 transition-colors hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                “{suggestions[0]}”
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+
+        <div
+          className={cn(
+            "shlawp-chat min-h-0 flex-1",
+            isVoice && "hidden",
+          )}
+        >
+          <AgentChatSurface
+            mode="page"
+            className="h-full"
+            defaultMode="chat"
+            storageKey="chat"
+            threadUrlSync={threadUrlSync}
+            browserTabId={TAB_ID}
+            showHeader={false}
+            showTabBar={false}
+            showPageNewChatButton={false}
+            dynamicSuggestions={false}
+            suggestions={suggestions}
+            emptyStateText={t("shlawp.emptyState")}
+            showModelSelector={false}
+            plusMenuMode="hidden"
+            composerPlaceholder={t("shlawp.composerPlaceholder")}
+            composerSlot={<ShlawpThreadBridge />}
+            composerExtraActionButton={
+              voiceSupported ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t("shlawp.switchToVoice")}
+                      onClick={() => switchMode("voice")}
+                    >
+                      <span className="shlawp-bars shlawp-bars-sm" aria-hidden>
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("shlawp.switchToVoice")}</TooltipContent>
+                </Tooltip>
+              ) : undefined
+            }
+          />
+        </div>
+
+        {isVoice ? (
+          <div className="shlawp-safe-bottom grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-8 pt-4">
+            <div className="flex justify-start">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("shlawp.switchToText")}
+                    onClick={() => switchMode("text")}
+                    className="size-11 rounded-full text-white/55 hover:bg-white/10 hover:text-white [&_svg]:size-5"
+                  >
+                    <IconKeyboard />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("shlawp.switchToText")}</TooltipContent>
+              </Tooltip>
+            </div>
+            <button
+              type="button"
+              onClick={handleMicPress}
+              aria-label={micLabel}
+              aria-pressed={phase === "listening"}
+              disabled={phase === "thinking"}
+              className={cn(
+                "shlawp-mic",
+                phase === "listening" && "shlawp-mic-listening",
+              )}
+            >
+              {phase === "speaking" ? (
+                <IconPlayerStopFilled className="size-6" />
+              ) : (
+                <span className="shlawp-bars" aria-hidden>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              )}
+            </button>
+            <div />
           </div>
-        }
-      />
-    </div>
+        ) : null}
+      </div>
+    </PhoneFrame>
   );
 }

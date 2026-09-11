@@ -57,6 +57,16 @@ export default defineEventHandler(async () => {
       NETLIFY_DATABASE_URL_UNPOOLED: Boolean(
         process.env.NETLIFY_DATABASE_URL_UNPOOLED,
       ),
+      // Presence only — do these deploy variables reach the functions at all?
+      BETTER_AUTH_SECRET: Boolean(process.env.BETTER_AUTH_SECRET),
+      // guard:allow-env-credential — presence check only, the value is never read
+      ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+      // guard:allow-env-credential — presence check only, the value is never read
+      ELEVENLABS_API_KEY: Boolean(process.env.ELEVENLABS_API_KEY),
+      AUTO_CREATE_DEFAULT_ORG:
+        // guard:allow-env-credential — deploy-level org flag, not a credential
+        process.env.AUTO_CREATE_DEFAULT_ORG ?? null,
+      NETLIFY: process.env.NETLIFY ?? null,
       NODE_ENV: process.env.NODE_ENV ?? null,
     },
     alias: netlifyDatabaseAlias,

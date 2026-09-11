@@ -2,7 +2,7 @@ import { getSession } from "@agent-native/core/server";
 import { defineEventHandler, setResponseStatus } from "h3";
 import type { H3Event } from "h3";
 
-import { isGuestEmail } from "../lib/guest.js";
+import { isGuestEmail, mintGuestIfNeeded } from "../lib/guest.js";
 import { CHAT_LIMITS, SPEAK_LIMITS, consumeRateLimit } from "../lib/rate-limit.js";
 
 /**
@@ -137,10 +137,14 @@ async function checkChatRequest(event: H3Event): Promise<ChatCheck> {
 }
 
 export default defineEventHandler(async (event) => {
+  // Root middleware sees the full path; prefix-mounted routes do not.
   const pathname = event.url.pathname;
   const isFrameworkPath = pathname.startsWith("/_agent-native/");
   const isSpeak = pathname === SPEAK_PATH;
   if (!isFrameworkPath && !isSpeak) return;
+
+  // Every visitor needs a guest identity, locked or not.
+  mintGuestIfNeeded(event, pathname);
   if (isUnlocked()) return;
 
   const session = await getSession(event);

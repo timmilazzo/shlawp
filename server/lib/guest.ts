@@ -1,5 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
+import { getCookie, setCookie } from "h3";
+import type { H3Event } from "h3";
+
 /**
  * Shlawp is a public demo: no sign-up, but every browser still needs its own
  * identity so visitors don't share one chat history. The cookie carries a
@@ -49,4 +52,41 @@ export function guestEmail(id: string): string {
 
 export function isGuestEmail(email: string | null | undefined): boolean {
   return !!email && email.toLowerCase().endsWith(`@${GUEST_EMAIL_DOMAIN}`);
+}
+
+/**
+ * The one request allowed to mint a new guest. The client calls it before
+ * anything else, so minting anywhere would hand a single visitor several
+ * identities from the parallel requests on first load.
+ */
+export const GUEST_MINT_PATH = "/_agent-native/auth/session";
+
+const MINTED_CONTEXT_KEY = "shlawpGuestId";
+
+/**
+ * Called from root middleware, where the full request path is still intact
+ * (framework routes are mounted by prefix and see it stripped). Mints a guest
+ * cookie on the session request when the visitor has none, and records the id
+ * on the request context so `getSession` resolves it within this same request.
+ */
+export function mintGuestIfNeeded(event: H3Event, pathname: string): void {
+  if (pathname !== GUEST_MINT_PATH) return;
+  if (readGuestId(getCookie(event, GUEST_COOKIE))) return;
+  const { id, cookie } = issueGuestCookieValue();
+  setCookie(event, GUEST_COOKIE, cookie, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: GUEST_COOKIE_MAX_AGE,
+  });
+  event.context[MINTED_CONTEXT_KEY] = id;
+}
+
+/** The guest for this request: the signed cookie, or one minted just now. */
+export function resolveGuestId(event: H3Event): string | null {
+  const fromCookie = readGuestId(getCookie(event, GUEST_COOKIE));
+  if (fromCookie) return fromCookie;
+  const minted = event.context[MINTED_CONTEXT_KEY];
+  return typeof minted === "string" ? minted : null;
 }

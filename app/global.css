@@ -217,6 +217,20 @@
   background: hsl(var(--background));
 }
 
+/*
+ * The stock composer ships controls Shlawp doesn't want: the Act/Plan mode
+ * picker (the agent has no tools to plan with) and its own dictation mic, which
+ * would compete with "Talk instead". Neither has a prop to turn it off. The
+ * mode picker has a stable slot name; the mic has none, so every unslotted
+ * toolbar button except Shlawp's own toggle is hidden.
+ */
+.shlawp-chat [data-agent-composer-slot="mode-button"],
+.shlawp-chat
+  [data-agent-composer-slot="toolbar"]
+  > button:not([data-agent-composer-slot]):not(.shlawp-talk-toggle) {
+  display: none;
+}
+
 .shlawp-orb {
   --orb: min(80vw, 21rem);
   position: relative;

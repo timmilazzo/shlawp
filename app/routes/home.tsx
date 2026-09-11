@@ -374,6 +374,7 @@ export default function ShlawpRoute() {
                       size="icon"
                       aria-label={t("shlawp.switchToVoice")}
                       onClick={() => switchMode("voice")}
+                      className="shlawp-talk-toggle"
                     >
                       <span className="shlawp-bars shlawp-bars-sm" aria-hidden>
                         <span />

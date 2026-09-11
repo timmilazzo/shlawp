@@ -17,9 +17,10 @@ monorepo.
   parroting lines. Includes the in-character refusals (see Guardrails).
 - `server/prompts/second-opinion.ts` — the honest agent. Short, takes a
   position, ends with a question for the rest of the team.
-- `server/plugins/agent-chat.ts` — uses Shlawp mode by default;
-  `SHLAWP_MODE=second-opinion` flips the whole server. That env switch is a
-  placeholder for the real per-thread toggle described below.
+- `server/plugins/agent-chat.ts` — picks Shlawp or Second Opinion per thread
+  from application state (`shlawp-mode:<threadId>`, falling back to the
+  visitor's last choice). `SHLAWP_MODE=second-opinion` only changes the default
+  for threads with no choice yet.
 
 ## The page, in order
 

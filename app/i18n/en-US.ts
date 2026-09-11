@@ -47,6 +47,7 @@ const messages = {
     footerBefore: "Building Shlawp with ",
     footerLink: "Agent-Native",
     orbLabel: "Shlawp",
+    secondOpinion: "I'd like a second opinion",
     send: "Send",
     stop: "Stop",
     suggestionAnalyst: "Can you do my analyst's job?",

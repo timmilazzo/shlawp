@@ -2,6 +2,7 @@ import { getSession } from "@agent-native/core/server";
 import { defineEventHandler, setResponseStatus } from "h3";
 import type { H3Event } from "h3";
 
+import { rememberChatThreadId } from "../lib/chat-thread.js";
 import { isGuestEmail, mintGuestIfNeeded } from "../lib/guest.js";
 import { CHAT_LIMITS, SPEAK_LIMITS, consumeRateLimit } from "../lib/rate-limit.js";
 
@@ -54,7 +55,18 @@ const CHAT_PATHS = new Set([
 const SPEAK_PATH = "/api/shlawp/speak";
 
 /** The engine and model are pinned server-side; a request may not choose. */
-const ALLOWED_MODELS = new Set(["auto", "claude-haiku-4-5"]);
+const ALLOWED_MODELS = new Set([
+  "auto",
+  "claude-haiku-4-5",
+  "claude-haiku-4-5-20251001",
+]);
+
+/**
+ * The stock client echoes the resolved engine back on every turn, so the
+ * pinned engine is allowed and any other is refused. Mirrors the default in
+ * server/plugins/agent-chat.ts.
+ */
+const ALLOWED_ENGINE = process.env.AGENT_ENGINE ?? "anthropic";
 
 /**
  * The stock client resends the conversation with every turn, so input tokens
@@ -98,16 +110,20 @@ type ChatCheck = "ok" | "forbidden" | "too-long";
  * instructions, references that call out to other agents, or an unbounded
  * conversation. History itself is legitimate — the client resends it each turn.
  */
-async function checkChatRequest(event: H3Event): Promise<ChatCheck> {
-  let raw: string;
-  let body: Record<string, unknown>;
+type ChatBody = { raw: string; body: Record<string, unknown> };
+
+/** A copy of the chat body; the framework handler still reads the original. */
+async function readChatBody(event: H3Event): Promise<ChatBody | null> {
   try {
-    raw = await event.req.clone().text();
-    body = JSON.parse(raw) as Record<string, unknown>;
+    const raw = await event.req.clone().text();
+    return { raw, body: JSON.parse(raw) as Record<string, unknown> };
   } catch {
     // Unparseable bodies are the framework's problem, not this guard's.
-    return "ok";
+    return null;
   }
+}
+
+function checkChatRequest({ raw, body }: ChatBody): ChatCheck {
   const refuse = (field: string, verdict: ChatCheck): ChatCheck => {
     // Field names only; request content never reaches the log.
     console.warn(`[shlawp] refused chat request (${verdict}): ${field}`);
@@ -116,9 +132,16 @@ async function checkChatRequest(event: H3Event): Promise<ChatCheck> {
   if (typeof body.model === "string" && !ALLOWED_MODELS.has(body.model)) {
     return refuse("model", "forbidden");
   }
+  if (
+    body.engine !== undefined &&
+    body.engine !== null &&
+    body.engine !== ALLOWED_ENGINE
+  ) {
+    return refuse("engine", "forbidden");
+  }
   // `effort` is sent by the stock client on every turn and is harmless once
   // the model is pinned, so it is not on this list.
-  for (const field of ["engine", "harness", "instructions"]) {
+  for (const field of ["harness", "instructions"]) {
     if (body[field] !== undefined && body[field] !== null) {
       return refuse(field, "forbidden");
     }
@@ -145,6 +168,13 @@ export default defineEventHandler(async (event) => {
 
   // Every visitor needs a guest identity, locked or not.
   mintGuestIfNeeded(event, pathname);
+
+  const isChatPost =
+    CHAT_PATHS.has(pathname) && event.req.method === "POST";
+  const chatBody = isChatPost ? await readChatBody(event) : null;
+  // The prompt hook needs the thread to pick Shlawp or the second opinion.
+  if (chatBody) rememberChatThreadId(event, chatBody.body.threadId);
+
   if (isUnlocked()) return;
 
   const session = await getSession(event);
@@ -156,8 +186,8 @@ export default defineEventHandler(async (event) => {
 
   if (event.req.method !== "POST") return;
 
-  if (CHAT_PATHS.has(pathname)) {
-    const check = await checkChatRequest(event);
+  if (isChatPost) {
+    const check = chatBody ? checkChatRequest(chatBody) : "ok";
     if (check === "forbidden") {
       return deny(event, 403, "Not available on the Shlawp demo");
     }

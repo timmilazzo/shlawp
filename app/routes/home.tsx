@@ -2,6 +2,10 @@ import {
   AgentChatSurface,
   sendToAgentChat,
 } from "@agent-native/core/client/agent-chat";
+import {
+  readClientAppState,
+  writeClientAppState,
+} from "@agent-native/core/client/application-state";
 import { useT } from "@agent-native/core/client/i18n";
 import { useLiveTranscription } from "@agent-native/core/client/transcription/use-live-transcription";
 import { IconKeyboard, IconPlayerStopFilled } from "@tabler/icons-react";
@@ -9,14 +13,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { PhoneFrame } from "@/components/shlawp/PhoneFrame";
+import { ShlawpFooter } from "@/components/shlawp/ShlawpFooter";
 import { ShlawpOrb, type ShlawpMood } from "@/components/shlawp/ShlawpOrb";
 import {
   ShlawpThreadBridge,
+  ShlawpThreadIdReporter,
   getShlawpThread,
   useShlawpThread,
 } from "@/components/shlawp/thread-bridge";
 import { useShlawpVoice } from "@/components/shlawp/use-shlawp-voice";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +32,12 @@ import {
 import { APP_TITLE } from "@/lib/app-config";
 import { TAB_ID } from "@/lib/tab-id";
 import { cn } from "@/lib/utils";
+import {
+  SHLAWP_MODE_LAST_KEY,
+  parseShlawpMode,
+  shlawpModeKey,
+  type ShlawpMode,
+} from "@shared/shlawp-mode";
 
 const SEO_TITLE = `${APP_TITLE} - Absolutely.`;
 const SEO_DESCRIPTION =
@@ -87,6 +100,50 @@ function useMode(voiceSupported: boolean) {
   return [mode, update] as const;
 }
 
+/**
+ * Shlawp or the second opinion, per thread. The server reads the same
+ * application-state key when it assembles the prompt, so the choice travels
+ * with the thread rather than the browser. A thread with no stored choice
+ * inherits whatever the toggle shows.
+ */
+function useThreadOpinion(threadId: string | null) {
+  const [opinion, setOpinionState] = useState<ShlawpMode>("shlawp");
+  const opinionRef = useRef(opinion);
+  opinionRef.current = opinion;
+
+  useEffect(() => {
+    if (!threadId) return;
+    let cancelled = false;
+    const key = shlawpModeKey(threadId);
+    readClientAppState(key)
+      .then((stored) => {
+        if (cancelled) return;
+        const mode = parseShlawpMode(stored);
+        if (mode) setOpinionState(mode);
+        else
+          void writeClientAppState(key, { mode: opinionRef.current }).catch(
+            () => {},
+          );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId]);
+
+  /** Resolves once the choice is stored, so a turn sent next is answered in it. */
+  const setOpinion = useCallback(async (next: ShlawpMode) => {
+    setOpinionState(next);
+    const id = getShlawpThread().threadId;
+    await Promise.all([
+      writeClientAppState(SHLAWP_MODE_LAST_KEY, { mode: next }),
+      id ? writeClientAppState(shlawpModeKey(id), { mode: next }) : null,
+    ]).catch(() => {});
+  }, []);
+
+  return [opinion, setOpinion] as const;
+}
+
 export default function ShlawpRoute() {
   const { threadId } = useParams();
   const navigate = useNavigate();
@@ -104,6 +161,8 @@ export default function ShlawpRoute() {
   const { unlock, speak, stop: stopSpeaking, getLevel } = useShlawpVoice();
   const thread = useShlawpThread();
   const [mode, setMode] = useMode(voiceSupported);
+  const [opinion, setOpinion] = useThreadOpinion(thread.threadId);
+  const [laserKey, setLaserKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("idle");
   const [caption, setCaption] = useState<Caption>(null);
 
@@ -119,8 +178,13 @@ export default function ShlawpRoute() {
   const heard = [transcript, interimText].join(" ").trim();
 
   const sendTurn = useCallback(
-    (text: string) => {
-      awaitingAfterRef.current = getShlawpThread().assistantId;
+    (text: string, { sameThread = false }: { sameThread?: boolean } = {}) => {
+      const current = getShlawpThread();
+      // A thread whose last turn failed (rate limit, length cap, outage)
+      // would keep failing, so the next turn starts a fresh conversation —
+      // except a second-opinion re-ask, which belongs in the same thread.
+      const startFresh = current.assistantFailed && !sameThread;
+      awaitingAfterRef.current = startFresh ? null : current.assistantId;
       sawRunRef.current = false;
       setCaption({ from: "you", text });
       setPhase("thinking");
@@ -129,6 +193,7 @@ export default function ShlawpRoute() {
         submit: true,
         chatTarget: "local",
         openSidebar: false,
+        newTab: startFresh,
       });
     },
     [],
@@ -174,6 +239,53 @@ export default function ShlawpRoute() {
     setMode(next);
   }
 
+  /**
+   * "The turn" from SHLAWP.md: flip the toggle and the same question gets
+   * answered by the other agent. A hard cut, not a side-by-side.
+   */
+  async function handleOpinionChange(checked: boolean) {
+    const next: ShlawpMode = checked ? "second-opinion" : "shlawp";
+    // Inside the tap: audio has to be unlocked before the network round-trip.
+    if (isVoice) unlock();
+    setLaserKey((key) => key + 1);
+    stopHearing();
+    stopSpeaking();
+    await setOpinion(next);
+
+    const current = getShlawpThread();
+    if (!current.lastUserText || current.isRunning) {
+      if (isVoice) setPhase("idle");
+      return;
+    }
+    if (isVoice) {
+      sendTurn(current.lastUserText, { sameThread: true });
+    } else {
+      sendToAgentChat({
+        message: current.lastUserText,
+        submit: true,
+        chatTarget: "local",
+        openSidebar: false,
+      });
+    }
+  }
+
+  const opinionToggle = (
+    <div className="flex shrink-0 items-center justify-center gap-2.5 px-6">
+      <Switch
+        id="shlawp-second-opinion"
+        checked={opinion === "second-opinion"}
+        onCheckedChange={(checked) => void handleOpinionChange(checked)}
+        disabled={phase === "thinking" || thread.isRunning}
+      />
+      <label
+        htmlFor="shlawp-second-opinion"
+        className="cursor-pointer select-none text-[13px] text-white/70"
+      >
+        {t("shlawp.secondOpinion")}
+      </label>
+    </div>
+  );
+
   // End the turn after a pause, or abandon a session that hears nothing.
   useEffect(() => {
     if (phase !== "listening") return;
@@ -200,17 +312,24 @@ export default function ShlawpRoute() {
   // Pick up the reply once the run settles, then say it.
   useEffect(() => {
     if (phase !== "thinking" || awaitingAfterRef.current === undefined) return;
+    const isNewReply =
+      thread.assistantId !== null &&
+      thread.assistantId !== awaitingAfterRef.current;
     if (thread.isRunning) {
       sawRunRef.current = true;
-      if (thread.assistantId !== awaitingAfterRef.current && thread.assistantText) {
+      if (isNewReply && thread.assistantText && !thread.assistantFailed) {
         setCaption({ from: "shlawp", text: thread.assistantText });
       }
       return;
     }
-    const hasReply =
-      thread.assistantId !== null &&
-      thread.assistantId !== awaitingAfterRef.current &&
-      thread.assistantText;
+    if (isNewReply && thread.assistantFailed) {
+      // Never read an error message aloud in Shlawp's voice.
+      awaitingAfterRef.current = undefined;
+      setCaption({ from: "shlawp", text: t("shlawp.tryAgain") });
+      setPhase("idle");
+      return;
+    }
+    const hasReply = isNewReply && thread.assistantText;
     if (hasReply) {
       awaitingAfterRef.current = undefined;
       const reply = thread.assistantText;
@@ -223,7 +342,7 @@ export default function ShlawpRoute() {
       awaitingAfterRef.current = undefined;
       setPhase("idle");
     }
-  }, [phase, thread, speak]);
+  }, [phase, thread, speak, t]);
 
   useEffect(() => {
     if (phase !== "thinking") return;
@@ -300,8 +419,12 @@ export default function ShlawpRoute() {
             size={isVoice ? "hero" : "compact"}
             label={t("shlawp.orbLabel")}
             getLevel={getLevel}
+            laserKey={laserKey}
+            secondOpinion={opinion === "second-opinion"}
           />
         </div>
+
+        {isVoice ? null : <div className="pb-2">{opinionToggle}</div>}
 
         {isVoice ? (
           <p
@@ -328,6 +451,8 @@ export default function ShlawpRoute() {
           </p>
         ) : null}
 
+        {isVoice ? <div className="pt-1">{opinionToggle}</div> : null}
+
         <div
           className={cn(
             "shlawp-chat min-h-0 flex-1",
@@ -351,6 +476,9 @@ export default function ShlawpRoute() {
             plusMenuMode="hidden"
             composerPlaceholder={t("shlawp.composerPlaceholder")}
             composerSlot={<ShlawpThreadBridge />}
+            threadFooterSlot={({ threadId: slotThreadId }) => (
+              <ShlawpThreadIdReporter threadId={slotThreadId} />
+            )}
             composerExtraActionButton={
               voiceSupported ? (
                 <Tooltip>
@@ -361,6 +489,7 @@ export default function ShlawpRoute() {
                       size="icon"
                       aria-label={t("shlawp.switchToVoice")}
                       onClick={() => switchMode("voice")}
+                      className="shlawp-talk-toggle"
                     >
                       <span className="shlawp-bars shlawp-bars-sm" aria-hidden>
                         <span />
@@ -379,7 +508,7 @@ export default function ShlawpRoute() {
         </div>
 
         {isVoice ? (
-          <div className="shlawp-safe-bottom grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-8 pt-4">
+          <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-8 pt-4">
             <div className="flex justify-start">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -423,6 +552,15 @@ export default function ShlawpRoute() {
             <div />
           </div>
         ) : null}
+
+        <footer
+          className={cn(
+            "shlawp-safe-bottom shrink-0",
+            isVoice ? "pt-5" : "shlawp-footer-compact pt-1.5",
+          )}
+        >
+          <ShlawpFooter />
+        </footer>
       </div>
     </PhoneFrame>
   );

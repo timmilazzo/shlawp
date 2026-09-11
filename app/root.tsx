@@ -14,7 +14,7 @@ import { getThemeInitScript } from "@agent-native/core/client/ui";
 import { IconHierarchy2, IconSun, IconMoon } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Links,
   Meta,
@@ -115,12 +115,46 @@ function ThemeToggleItem() {
   );
 }
 
+/**
+ * The public demo is the chat surface only. Settings, team, database,
+ * observability and extensions belong to whoever runs the deployment, and the
+ * server refuses them for guests; this keeps a typed URL from landing on a
+ * broken page. Dev keeps them reachable for local setup.
+ */
+const DEMO_ONLY_PREFIXES = [
+  "/settings",
+  "/agent",
+  "/team",
+  "/database",
+  "/observability",
+  "/extensions",
+];
+
+function useDemoRouteGuard() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const blocked =
+    !import.meta.env.DEV &&
+    DEMO_ONLY_PREFIXES.some(
+      (prefix) =>
+        location.pathname === prefix ||
+        location.pathname.startsWith(`${prefix}/`),
+    );
+
+  useEffect(() => {
+    if (blocked) navigate("/home", { replace: true });
+  }, [blocked, navigate]);
+
+  return blocked;
+}
+
 function AppContent() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const navigate = useNavigate();
   const t = useT();
   const location = useLocation();
   const isChatThread = location.pathname.startsWith("/chat/");
+  const blockedRoute = useDemoRouteGuard();
   useCommandMenuShortcut(useCallback(() => setCmdkOpen(true), []));
   return (
     <>
@@ -140,28 +174,28 @@ function AppContent() {
               {t("navigation.chat")}
             </CommandMenu.Item>
           ) : null}
-          <CommandMenu.Item
-            onSelect={() => navigate("/settings/agent")}
-            keywords={[
-              "agent",
-              "context",
-              "files",
-              "connections",
-              "jobs",
-              "access",
-            ]}
-          >
-            <IconHierarchy2 size={16} />
-            {t("settings.openAgentSettings")}
-          </CommandMenu.Item>
+          {import.meta.env.DEV ? (
+            <CommandMenu.Item
+              onSelect={() => navigate("/settings/agent")}
+              keywords={[
+                "agent",
+                "context",
+                "files",
+                "connections",
+                "jobs",
+                "access",
+              ]}
+            >
+              <IconHierarchy2 size={16} />
+              {t("settings.openAgentSettings")}
+            </CommandMenu.Item>
+          ) : null}
         </CommandMenu.Group>
         <CommandMenu.Group heading={t("root.commandAppearance")}>
           <ThemeToggleItem />
         </CommandMenu.Group>
       </CommandMenu>
-      <AppLayout>
-        <Outlet />
-      </AppLayout>
+      <AppLayout>{blockedRoute ? null : <Outlet />}</AppLayout>
     </>
   );
 }

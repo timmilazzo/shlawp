@@ -1,6 +1,8 @@
 import { closeDbExec, withMigrationRuntime } from "@agent-native/core/db";
 import { runFrameworkReleaseMigrations } from "@agent-native/core/server";
 
+import { runShlawpMigrations } from "../server/plugins/db.js";
+
 /**
  * Release-time schema entrypoint.
  *
@@ -15,12 +17,12 @@ import { runFrameworkReleaseMigrations } from "@agent-native/core/server";
  * `runMigrations` — it is allowed to migrate only because it claims duty here.
  * A release entrypoint that forgets the wrapper silently does nothing.
  *
- * This entrypoint owns framework tables only. App tables in a managed Drizzle
- * project are generated from `drizzle/schema.ts` and applied by `db:migrate`.
+ * Framework tables come first, then this app's own (the rate-limit counter).
  */
 async function main(): Promise<void> {
   await withMigrationRuntime(async () => {
     await runFrameworkReleaseMigrations(null);
+    await runShlawpMigrations(null);
   });
 }
 

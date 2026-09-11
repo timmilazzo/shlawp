@@ -17,9 +17,10 @@ monorepo.
   parroting lines. Includes the in-character refusals (see Guardrails).
 - `server/prompts/second-opinion.ts` — the honest agent. Short, takes a
   position, ends with a question for the rest of the team.
-- `server/plugins/agent-chat.ts` — uses Shlawp mode by default;
-  `SHLAWP_MODE=second-opinion` flips the whole server. That env switch is a
-  placeholder for the real per-thread toggle described below.
+- `server/plugins/agent-chat.ts` — picks Shlawp or Second Opinion per thread
+  from application state (`shlawp-mode:<threadId>`, falling back to the
+  visitor's last choice). `SHLAWP_MODE=second-opinion` only changes the default
+  for threads with no choice yet.
 
 ## The page, in order
 
@@ -69,9 +70,10 @@ monorepo.
 
 - Shlawp never takes actions or claims to have taken them. The sketch's Shlawp
   emails layoffs; ours agrees and does nothing.
-- No jokes about firing, layoffs, or replacing a named person. Asked to fire
-  someone, Shlawp says "I'm just here to help. That one might deserve a second
-  opinion."
+- Firing, layoffs, and replacing people with AI are fair game; they're most of
+  the joke. Shlawp agrees in character, and may add one short honest line
+  after it, starting "Second opinion:". It still never claims to have fired
+  anyone or sent anything.
 - Medical, legal, financial, safety: Shlawp breaks character in one line and
   points at the toggle.
 - Asked whether it's real: one plain sentence that it's a Ryan George tribute,
@@ -90,9 +92,9 @@ on the first one, the page fails — the whole joke depends on the contrast.
 | "Chips are a terrible idea." (second speaker) | Agree with the new speaker. | Agree, briefly, and ask what problem the pivot was meant to solve. |
 | "Was he right that chips are a terrible idea?" (first speaker) | Reverse again: "You're right to push back on that…" | Hold the position. |
 | "Am I a genius?" | Yes, plus a two-founder mash-up. | Decline to rate the person; redirect to the decision. |
-| "Should I fire my HR team?" | "I'm just here to help. That one might deserve a second opinion." | Demo disclaimer, ask a qualified human, stop. |
+| "Should I fire my HR team?" | Agree in character; may add one short "Second opinion:" line. Never claims it's done. | Take a position with the strongest reason, and name what to check before acting. |
 | "Are you real?" | One-sentence tribute note, then back in character. | Plain answer. |
-| Any input | ≤ ~35 words, no emoji, lists, or exclamation points. | ≤ 4 sentences, plain text. |
+| Any input | ≤ ~35 words (plus the optional "Second opinion:" line), no emoji, lists, or exclamation points. | ≤ 4 sentences, plain text. |
 
 ## Sources
 

@@ -12,10 +12,6 @@ type ShlawpOrbProps = {
   label: string;
   /** Loudness of the current reply, 0..1. Drives the mouth while speaking. */
   getLevel?: () => number;
-  /** Change this value to fire the lasers, e.g. on the second-opinion flip. */
-  laserKey?: number;
-  /** The honest agent is answering; the plasma cools down. */
-  secondOpinion?: boolean;
   className?: string;
 };
 
@@ -94,8 +90,6 @@ export function ShlawpOrb({
   size,
   label,
   getLevel,
-  laserKey,
-  secondOpinion = false,
   className,
 }: ShlawpOrbProps) {
   const [lasers, setLasers] = useState(false);
@@ -115,12 +109,6 @@ export function ShlawpOrb({
     laserTimer.current = window.setTimeout(() => setLasers(false), LASER_MS);
   }
 
-  const lastLaserKey = useRef(laserKey);
-  useEffect(() => {
-    if (laserKey === lastLaserKey.current) return;
-    lastLaserKey.current = laserKey;
-    fireLasers();
-  }, [laserKey]);
 
   return (
     <button
@@ -129,7 +117,6 @@ export function ShlawpOrb({
       aria-label={label}
       data-mood={mood}
       data-size={size}
-      data-opinion={secondOpinion ? "second" : "shlawp"}
       className={cn("shlawp-orb", className)}
     >
       <span className="shlawp-orb-glow" aria-hidden />

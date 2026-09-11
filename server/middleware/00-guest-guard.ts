@@ -2,7 +2,6 @@ import { getSession } from "@agent-native/core/server";
 import { defineEventHandler, setResponseStatus } from "h3";
 import type { H3Event } from "h3";
 
-import { rememberChatThreadId } from "../lib/chat-thread.js";
 import { isGuestEmail, mintGuestIfNeeded } from "../lib/guest.js";
 import { CHAT_LIMITS, SPEAK_LIMITS, consumeRateLimit } from "../lib/rate-limit.js";
 
@@ -172,8 +171,6 @@ export default defineEventHandler(async (event) => {
   const isChatPost =
     CHAT_PATHS.has(pathname) && event.req.method === "POST";
   const chatBody = isChatPost ? await readChatBody(event) : null;
-  // The prompt hook needs the thread to pick Shlawp or the second opinion.
-  if (chatBody) rememberChatThreadId(event, chatBody.body.threadId);
 
   if (isUnlocked()) return;
 

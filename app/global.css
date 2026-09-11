@@ -403,34 +403,6 @@
     inset 0 0 24px 2px hsl(252 100% 70% / 0.45);
 }
 
-/*
- * Second opinion: same head, but the plasma cools to a steady pale blue-white.
- * The honest agent doesn't need the light show.
- */
-.shlawp-orb[data-opinion="second"] .shlawp-orb-plasma {
-  filter: saturate(0.12) brightness(1.15) blur(3px);
-}
-
-.shlawp-orb[data-opinion="second"] .shlawp-orb-glow {
-  background: radial-gradient(
-    circle,
-    hsl(200 40% 75% / 0.28) 0%,
-    hsl(210 30% 60% / 0.1) 42%,
-    transparent 68%
-  );
-}
-
-.shlawp-orb[data-opinion="second"] .shlawp-orb-rim {
-  box-shadow:
-    0 0 0 1.5px hsl(200 30% 92% / 0.75),
-    0 0 18px 2px hsl(200 40% 80% / 0.35),
-    inset 0 0 22px 2px hsl(200 40% 85% / 0.25);
-}
-
-.shlawp-orb[data-opinion="second"] .shlawp-orb-head {
-  filter: saturate(0.35) brightness(1.05);
-}
-
 .shlawp-orb[data-mood="listening"] .shlawp-orb-glow {
   animation-duration: 1.6s;
 }

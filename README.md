@@ -20,8 +20,8 @@ cp .env.example .env   # set AUTH_DISABLED=true for the public demo surface
 pnpm dev
 ```
 
-`SHLAWP_MODE=second-opinion pnpm dev` starts the honest agent instead. The
-per-thread toggle is the next thing to build — see SHLAWP.md, "The turn".
+`SHLAWP_MODE=second-opinion pnpm dev` starts the honest agent instead. There is
+no in-app switch between the two — see SHLAWP.md, "The turn", for why.
 
 ## Scaffold provenance
 

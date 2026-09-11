@@ -17,10 +17,8 @@ monorepo.
   parroting lines. Includes the in-character refusals (see Guardrails).
 - `server/prompts/second-opinion.ts` — the honest agent. Short, takes a
   position, ends with a question for the rest of the team.
-- `server/plugins/agent-chat.ts` — picks Shlawp or Second Opinion per thread
-  from application state (`shlawp-mode:<threadId>`, falling back to the
-  visitor's last choice). `SHLAWP_MODE=second-opinion` only changes the default
-  for threads with no choice yet.
+- `server/plugins/agent-chat.ts` — one character per deployment, chosen at boot
+  by `SHLAWP_MODE`. Shlawp by default; `second-opinion` runs the honest agent.
 
 ## The page, in order
 
@@ -32,9 +30,13 @@ monorepo.
    *"Should we pivot to chips?" · "Am I a once-in-a-generation visionary?" ·
    "Did I do the right thing?" · "Is my plan smart?" · "Can you do my
    analyst's job?"*
-3. **The turn.** A toggle labeled **"I'd like a second opinion"**. Flip it and
-   the *same* question gets the honest answer. A hard cut is funnier than
-   side-by-side.
+3. **The turn.** Built as a toggle labeled "I'd like a second opinion", then
+   cut. A gag has one move, and a second control next to the mic made visitors
+   read the interface instead of using it. The turn now lives inside Shlawp's
+   own reply: on firing and layoff questions it agrees in character, then adds
+   one honest line starting "Second opinion:". Same hard cut, no switch. The
+   full honest agent is still there behind `SHLAWP_MODE=second-opinion` if the
+   side-by-side is ever worth another look.
 4. **The lead-in.** Three lines, no manifesto:
    > Shlawp is single-player. It's you and a mirror.
    > Agent-Native is multiplayer: agents that work inside the apps your whole
@@ -46,11 +48,10 @@ monorepo.
 
 ## Build notes
 
-- **The toggle is per thread, not per server.** Implement it as application
-  state (`mode: "shlawp" | "second-opinion"`) that the agent-chat plugin reads
-  when it assembles the system prompt, so a thread can be re-answered in the
-  other mode without a reload. The env var is only there so the two prompts
-  can be tested today.
+- **Don't rebuild the per-thread toggle.** It existed (application state keyed
+  `shlawp-mode:<threadId>`, read when the plugin assembled the prompt) and was
+  removed on purpose. If a future version wants both voices in one thread, make
+  it a thing Shlawp says, not a thing the visitor configures.
 - **No login gate on the demo.** `AUTH_DISABLED=true` for the public surface;
   a gate kills the share. Rate-limit the model call and cap thread length — a
   viral free chatbot is a bill.

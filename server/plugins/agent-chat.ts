@@ -1,4 +1,3 @@
-import { appStateGet } from "@agent-native/core/application-state";
 import { getOrgContext } from "@agent-native/core/org";
 import {
   createAgentChatPlugin,
@@ -6,53 +5,20 @@ import {
 } from "@agent-native/core/server";
 
 import actionsRegistry from "../../.generated/actions-registry.js";
-import {
-  SHLAWP_MODE_LAST_KEY,
-  parseShlawpMode,
-  shlawpModeKey,
-  type ShlawpMode,
-} from "../../shared/shlawp-mode.js";
-import { chatThreadIdFromEvent } from "../lib/chat-thread.js";
 import { SECOND_OPINION_SYSTEM_PROMPT } from "../prompts/second-opinion.js";
 import { SHLAWP_SYSTEM_PROMPT } from "../prompts/shlawp.js";
-
-/**
- * The persona lives in the per-request context below, not here, because the
- * mode is chosen per thread: the "I'd like a second opinion" toggle stores it
- * in application state and the same question can be re-answered either way.
- */
-const BASE_SYSTEM_PROMPT = `You are one of two characters in a public web demo called Shlawp. The mode instructions that follow tell you which character you are for this reply. Follow them exactly and stay in that character for the whole reply.`;
-
-const DEFAULT_MODE: ShlawpMode =
-  // guard:allow-env-credential — default mode for threads without a stored choice, not a credential
-  process.env.SHLAWP_MODE === "second-opinion" ? "second-opinion" : "shlawp";
-
-async function resolveThreadMode(
-  event: unknown,
-  owner: string,
-): Promise<ShlawpMode> {
-  if (!owner) return DEFAULT_MODE;
-  const threadId = chatThreadIdFromEvent(event);
-  try {
-    const forThread = threadId
-      ? parseShlawpMode(await appStateGet(owner, shlawpModeKey(threadId)))
-      : null;
-    if (forThread) return forThread;
-    const last = parseShlawpMode(await appStateGet(owner, SHLAWP_MODE_LAST_KEY));
-    return last ?? DEFAULT_MODE;
-  } catch (error) {
-    console.warn("[shlawp] could not read thread mode", error);
-    return DEFAULT_MODE;
-  }
-}
 
 export default createAgentChatPlugin({
   appId: "shlawp",
   actions: loadActionsFromStaticRegistry(actionsRegistry),
   resolveOrgId: async (event) => (await getOrgContext(event)).orgId,
-  systemPrompt: BASE_SYSTEM_PROMPT,
-  extraContext: async (event, owner) =>
-    (await resolveThreadMode(event, owner)) === "second-opinion"
+
+  // One character per deployment. A per-thread toggle was built and cut: for a
+  // one-gag demo the extra control cost more than the joke gained.
+  // SHLAWP_MODE=second-opinion runs the honest agent instead.
+  systemPrompt:
+    // guard:allow-env-credential — prompt mode switch, not a credential
+    process.env.SHLAWP_MODE === "second-opinion"
       ? SECOND_OPINION_SYSTEM_PROMPT
       : SHLAWP_SYSTEM_PROMPT,
 

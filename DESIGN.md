@@ -39,10 +39,7 @@ The head sprites live in `public/shlawp/head/` (transparent) and `public/shlawp/
 | Listening | `06-query` |
 | Thinking | `08-thinking`, `07-puzzled` |
 | Speaking | `04-speak-open` / `05-speak-closing`, on speech word boundaries |
-| Tap the orb, or flip "I'd like a second opinion" | `09-lasers` |
-
-In second-opinion mode the orb keeps the head but the plasma cools to a steady
-pale blue-white.
+| Tap the orb | `09-lasers` |
 
 ## Guardrails
 

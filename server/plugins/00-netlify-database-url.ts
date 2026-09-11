@@ -7,13 +7,15 @@ import { defineNitroPlugin } from "@agent-native/core";
  * before anything opens a connection. The build does the same in netlify.toml.
  * Runs at module load so it precedes every plugin and request.
  */
-if (
-  !process.env.DATABASE_URL &&
-  !process.env.NETLIFY_DATABASE_URL &&
-  process.env.NETLIFY_DB_URL
-) {
+export const netlifyDatabaseAlias: string = (() => {
+  if (process.env.DATABASE_URL) return "skipped: DATABASE_URL already set";
+  if (process.env.NETLIFY_DATABASE_URL) {
+    return "skipped: NETLIFY_DATABASE_URL already set";
+  }
+  if (!process.env.NETLIFY_DB_URL) return "skipped: NETLIFY_DB_URL missing";
   // guard:allow-env-mutation — deploy-level alias set once at boot, identical for every request
   process.env.DATABASE_URL = process.env.NETLIFY_DB_URL;
-}
+  return "applied";
+})();
 
 export default defineNitroPlugin(() => {});

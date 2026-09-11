@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { PhoneFrame } from "@/components/shlawp/PhoneFrame";
+import { ShlawpFooter } from "@/components/shlawp/ShlawpFooter";
 import { ShlawpOrb, type ShlawpMood } from "@/components/shlawp/ShlawpOrb";
 import {
   ShlawpThreadBridge,
@@ -120,7 +121,11 @@ export default function ShlawpRoute() {
 
   const sendTurn = useCallback(
     (text: string) => {
-      awaitingAfterRef.current = getShlawpThread().assistantId;
+      const current = getShlawpThread();
+      // A thread whose last turn failed (rate limit, length cap, outage)
+      // would keep failing, so the next turn starts a fresh conversation.
+      const startFresh = current.assistantFailed;
+      awaitingAfterRef.current = startFresh ? null : current.assistantId;
       sawRunRef.current = false;
       setCaption({ from: "you", text });
       setPhase("thinking");
@@ -129,6 +134,7 @@ export default function ShlawpRoute() {
         submit: true,
         chatTarget: "local",
         openSidebar: false,
+        newTab: startFresh,
       });
     },
     [],
@@ -200,17 +206,24 @@ export default function ShlawpRoute() {
   // Pick up the reply once the run settles, then say it.
   useEffect(() => {
     if (phase !== "thinking" || awaitingAfterRef.current === undefined) return;
+    const isNewReply =
+      thread.assistantId !== null &&
+      thread.assistantId !== awaitingAfterRef.current;
     if (thread.isRunning) {
       sawRunRef.current = true;
-      if (thread.assistantId !== awaitingAfterRef.current && thread.assistantText) {
+      if (isNewReply && thread.assistantText && !thread.assistantFailed) {
         setCaption({ from: "shlawp", text: thread.assistantText });
       }
       return;
     }
-    const hasReply =
-      thread.assistantId !== null &&
-      thread.assistantId !== awaitingAfterRef.current &&
-      thread.assistantText;
+    if (isNewReply && thread.assistantFailed) {
+      // Never read an error message aloud in Shlawp's voice.
+      awaitingAfterRef.current = undefined;
+      setCaption({ from: "shlawp", text: t("shlawp.tryAgain") });
+      setPhase("idle");
+      return;
+    }
+    const hasReply = isNewReply && thread.assistantText;
     if (hasReply) {
       awaitingAfterRef.current = undefined;
       const reply = thread.assistantText;
@@ -223,7 +236,7 @@ export default function ShlawpRoute() {
       awaitingAfterRef.current = undefined;
       setPhase("idle");
     }
-  }, [phase, thread, speak]);
+  }, [phase, thread, speak, t]);
 
   useEffect(() => {
     if (phase !== "thinking") return;
@@ -379,7 +392,7 @@ export default function ShlawpRoute() {
         </div>
 
         {isVoice ? (
-          <div className="shlawp-safe-bottom grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-8 pt-4">
+          <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center px-8 pt-4">
             <div className="flex justify-start">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -423,6 +436,15 @@ export default function ShlawpRoute() {
             <div />
           </div>
         ) : null}
+
+        <footer
+          className={cn(
+            "shlawp-safe-bottom shrink-0",
+            isVoice ? "pt-5" : "shlawp-footer-compact pt-1.5",
+          )}
+        >
+          <ShlawpFooter />
+        </footer>
       </div>
     </PhoneFrame>
   );

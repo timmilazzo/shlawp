@@ -55,6 +55,10 @@ const NO_SPEECH_MS = 9000;
 // A run that never produces a reply shouldn't leave the orb thinking forever.
 const RUN_START_TIMEOUT_MS = 15_000;
 const REPLY_TIMEOUT_MS = 60_000;
+// The run flag drops a few hundred milliseconds before the reply text is
+// committed to the thread. Treating that gap as "no reply" ended the turn
+// silently; the text then arrived with nobody listening.
+const REPLY_SETTLE_MS = 2_500;
 
 function chatThreadPath(threadId: string | null) {
   return threadId ? `/chat/${encodeURIComponent(threadId)}` : "/home";
@@ -112,6 +116,14 @@ export default function ShlawpRoute() {
   // is any newer assistant message once the run settles.
   const awaitingAfterRef = useRef<string | null | undefined>(undefined);
   const sawRunRef = useRef(false);
+  const settleTimerRef = useRef<number | null>(null);
+
+  const clearSettleTimer = useCallback(() => {
+    if (settleTimerRef.current !== null) {
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+  }, []);
 
   const threadUrlSync = threadId
     ? { routeThreadId: threadId, getPath: chatThreadPath, navigate }
@@ -153,10 +165,11 @@ export default function ShlawpRoute() {
   const resetVoice = useCallback(() => {
     stopHearing();
     stopSpeaking();
+    clearSettleTimer();
     awaitingAfterRef.current = undefined;
     setPhase("idle");
     setCaption(null);
-  }, [stopHearing, stopSpeaking]);
+  }, [stopHearing, stopSpeaking, clearSettleTimer]);
 
   function handleMicPress() {
     if (phase === "listening") {
@@ -205,12 +218,16 @@ export default function ShlawpRoute() {
 
   // Pick up the reply once the run settles, then say it.
   useEffect(() => {
-    if (phase !== "thinking" || awaitingAfterRef.current === undefined) return;
+    if (phase !== "thinking" || awaitingAfterRef.current === undefined) {
+      clearSettleTimer();
+      return;
+    }
     const isNewReply =
       thread.assistantId !== null &&
       thread.assistantId !== awaitingAfterRef.current;
     if (thread.isRunning) {
       sawRunRef.current = true;
+      clearSettleTimer();
       if (isNewReply && thread.assistantText && !thread.assistantFailed) {
         setCaption({ from: "shlawp", text: thread.assistantText });
       }
@@ -218,6 +235,7 @@ export default function ShlawpRoute() {
     }
     if (isNewReply && thread.assistantFailed) {
       // Never read an error message aloud in Shlawp's voice.
+      clearSettleTimer();
       awaitingAfterRef.current = undefined;
       setCaption({ from: "shlawp", text: t("shlawp.tryAgain") });
       setPhase("idle");
@@ -225,6 +243,7 @@ export default function ShlawpRoute() {
     }
     const hasReply = isNewReply && thread.assistantText;
     if (hasReply) {
+      clearSettleTimer();
       awaitingAfterRef.current = undefined;
       const reply = thread.assistantText;
       setCaption({ from: "shlawp", text: reply });
@@ -232,11 +251,17 @@ export default function ShlawpRoute() {
       void speak(reply).finally(() => {
         setPhase((current) => (current === "speaking" ? "idle" : current));
       });
-    } else if (sawRunRef.current) {
-      awaitingAfterRef.current = undefined;
-      setPhase("idle");
+    } else if (sawRunRef.current && settleTimerRef.current === null) {
+      // Run flag is down but the text hasn't landed. Give it a moment; a
+      // later thread update with the reply re-enters above and speaks.
+      settleTimerRef.current = window.setTimeout(() => {
+        settleTimerRef.current = null;
+        if (awaitingAfterRef.current === undefined) return;
+        awaitingAfterRef.current = undefined;
+        setPhase("idle");
+      }, REPLY_SETTLE_MS);
     }
-  }, [phase, thread, speak, t]);
+  }, [phase, thread, speak, t, clearSettleTimer]);
 
   useEffect(() => {
     if (phase !== "thinking") return;
@@ -352,6 +377,8 @@ export default function ShlawpRoute() {
             className="h-full"
             defaultMode="chat"
             storageKey="chat"
+            // Every visit is a fresh conversation. A gag doesn't need a history.
+            restoreActiveThread={false}
             threadUrlSync={threadUrlSync}
             browserTabId={TAB_ID}
             showHeader={false}

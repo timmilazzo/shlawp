@@ -128,8 +128,29 @@ async function main(): Promise<void> {
   });
 }
 
+/**
+ * Exit explicitly. After the last statement applies, something in the runtime
+ * keeps the event loop alive; the first complete run against Supabase sat
+ * idle until Netlify's 18-minute limit killed the build with every migration
+ * already committed. The framework's own CLI runner closes the pools and then
+ * calls process.exit() on every path for the same reason.
+ *
+ * The pool close is bounded too: a pooler that never acknowledges the
+ * disconnect must not turn a finished migration into a failed deploy.
+ */
+let failed = false;
 try {
   await main();
+} catch (error) {
+  failed = true;
+  console.error(error);
 } finally {
-  await closeDbExec();
+  const closeDeadline = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      console.warn("[db] pool did not close within 10s; exiting anyway");
+      resolve();
+    }, 10_000).unref();
+  });
+  await Promise.race([closeDbExec().catch(() => {}), closeDeadline]);
 }
+process.exit(failed ? 1 : 0);

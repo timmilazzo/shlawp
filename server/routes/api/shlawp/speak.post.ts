@@ -6,7 +6,7 @@ import { defineEventHandler, HTTPError, readBody } from "h3";
  * route-only endpoint: text in, ElevenLabs MP3 out. Replies are capped at a
  * few sentences by the prompt, so the length cap only stops misuse.
  */
-const VOICE_ID = "duHr6zuf2C3ZG9scTB9q";
+const VOICE_ID = "aWSwMfJOK8iYZivczje6";
 const MODEL_ID = "eleven_flash_v2_5";
 const MAX_CHARS = 600;
 

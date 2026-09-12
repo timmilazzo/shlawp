@@ -2,6 +2,7 @@ import {
   getDbExec,
   getRuntimeDatabaseSource,
   getRuntimeDatabaseUrl,
+  isProductionServerlessFunctionRuntime,
 } from "@agent-native/core/db";
 import { defineEventHandler } from "h3";
 
@@ -68,7 +69,16 @@ export default defineEventHandler(async () => {
         process.env.AUTO_CREATE_DEFAULT_ORG ?? null,
       NETLIFY: process.env.NETLIFY ?? null,
       NODE_ENV: process.env.NODE_ENV ?? null,
+      AWS_LAMBDA_FUNCTION_NAME: Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME),
+      NETLIFY_FUNCTION_NAME: Boolean(process.env.NETLIFY_FUNCTION_NAME),
+      // Inlined into the bundle at build time; shows what the build baked in.
+      AGENT_NATIVE_RELEASE_MIGRATIONS:
+        process.env.AGENT_NATIVE_RELEASE_MIGRATIONS ?? null,
     },
+    // The framework's own verdict. When false, every cold start re-probes the
+    // whole schema instead of trusting the release migration — the first
+    // condition it checks is NODE_ENV === "production".
+    productionServerlessRuntime: isProductionServerlessFunctionRuntime(),
     alias: netlifyDatabaseAlias,
     source: getRuntimeDatabaseSource(),
     target: describeTarget(url),

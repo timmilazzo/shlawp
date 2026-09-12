@@ -10,6 +10,29 @@ const VOICE_ID = "duHr6zuf2C3ZG9scTB9q";
 const MODEL_ID = "eleven_flash_v2_5";
 const MAX_CHARS = 600;
 
+async function describeUpstreamError(
+  upstream: Response,
+): Promise<{ slug: string; message: string }> {
+  try {
+    const body = (await upstream.json()) as {
+      detail?: { status?: unknown; message?: unknown } | string;
+    };
+    if (typeof body.detail === "string") {
+      return { slug: "error", message: body.detail.slice(0, 200) };
+    }
+    return {
+      slug:
+        typeof body.detail?.status === "string" ? body.detail.status : "error",
+      message:
+        typeof body.detail?.message === "string"
+          ? body.detail.message.slice(0, 200)
+          : "",
+    };
+  } catch {
+    return { slug: "error", message: "" };
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const session = await getSession(event);
   if (!session?.email) {
@@ -45,8 +68,18 @@ export default defineEventHandler(async (event) => {
   );
 
   if (!upstream.ok || !upstream.body) {
-    console.error(`[shlawp/speak] ElevenLabs responded ${upstream.status}`);
-    throw new HTTPError({ status: 502, message: "Voice unavailable" });
+    // ElevenLabs explains itself in `detail.status` (voice_not_found,
+    // quota_exceeded, …). Surface that slug and the HTTP status so a failure
+    // is diagnosable from the client; the full message stays in the log.
+    const detail = await describeUpstreamError(upstream);
+    console.error(
+      `[shlawp/speak] ElevenLabs responded ${upstream.status}: ${detail.slug} ${detail.message}`,
+    );
+    throw new HTTPError({
+      status: 502,
+      message: "Voice unavailable",
+      data: { upstreamStatus: upstream.status, reason: detail.slug },
+    });
   }
 
   return new Response(upstream.body, {

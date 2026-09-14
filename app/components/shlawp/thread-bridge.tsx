@@ -12,6 +12,8 @@ export type ShlawpThreadSnapshot = {
   assistantText: string;
   /** The last reply ended in an error rather than an answer. */
   assistantFailed: boolean;
+  /** assistant-ui message status: "running" while streaming, "complete" after. */
+  assistantStatus: string | null;
 };
 
 let snapshot: ShlawpThreadSnapshot = {
@@ -19,6 +21,7 @@ let snapshot: ShlawpThreadSnapshot = {
   assistantId: null,
   assistantText: "",
   assistantFailed: false,
+  assistantStatus: null,
 };
 const listeners = new Set<() => void>();
 
@@ -34,6 +37,12 @@ function publish(patch: Partial<ShlawpThreadSnapshot>) {
   );
   if (!changed) return;
   snapshot = next;
+  // Debug surface for tracing turn sequencing in a deployed build.
+  if (typeof window !== "undefined") {
+    (
+      window as unknown as { __shlawpThread?: ShlawpThreadSnapshot }
+    ).__shlawpThread = snapshot;
+  }
   for (const listener of listeners) listener();
 }
 
@@ -90,10 +99,19 @@ export function ShlawpThreadBridge() {
   const assistantFailed = useAuiState((s) =>
     failed(lastAssistant(s.thread.messages)),
   );
+  const assistantStatus = useAuiState(
+    (s) => lastAssistant(s.thread.messages)?.status?.type ?? null,
+  );
 
   useEffect(() => {
-    publish({ isRunning, assistantId, assistantText, assistantFailed });
-  }, [isRunning, assistantId, assistantText, assistantFailed]);
+    publish({
+      isRunning,
+      assistantId,
+      assistantText,
+      assistantFailed,
+      assistantStatus,
+    });
+  }, [isRunning, assistantId, assistantText, assistantFailed, assistantStatus]);
 
   return null;
 }

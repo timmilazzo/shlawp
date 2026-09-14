@@ -55,10 +55,14 @@ const NO_SPEECH_MS = 9000;
 // A run that never produces a reply shouldn't leave the orb thinking forever.
 const RUN_START_TIMEOUT_MS = 15_000;
 const REPLY_TIMEOUT_MS = 60_000;
-// The run flag drops a few hundred milliseconds before the reply text is
-// committed to the thread. Treating that gap as "no reply" ended the turn
-// silently; the text then arrived with nobody listening.
+// The run flag drops before the reply text is fully committed, and the text
+// itself lands in several updates. Speaking on the first piece read
+// "Absolutely." aloud while the rest of the sentence was still arriving, so
+// a reply is spoken only once its text has stopped changing.
 const REPLY_SETTLE_MS = 2_500;
+const REPLY_QUIET_MS = 900;
+// While the message still reports itself as streaming, allow a longer gap.
+const REPLY_QUIET_STREAMING_MS = 2_500;
 
 function chatThreadPath(threadId: string | null) {
   return threadId ? `/chat/${encodeURIComponent(threadId)}` : "/home";
@@ -243,14 +247,28 @@ export default function ShlawpRoute() {
     }
     const hasReply = isNewReply && thread.assistantText;
     if (hasReply) {
+      // Show what has arrived, but only speak once the text holds still.
+      // Every thread update re-enters here and restarts the quiet window.
+      setCaption({ from: "shlawp", text: thread.assistantText });
       clearSettleTimer();
-      awaitingAfterRef.current = undefined;
-      const reply = thread.assistantText;
-      setCaption({ from: "shlawp", text: reply });
-      setPhase("speaking");
-      void speak(reply).finally(() => {
-        setPhase((current) => (current === "speaking" ? "idle" : current));
-      });
+      const quietMs =
+        thread.assistantStatus === "running"
+          ? REPLY_QUIET_STREAMING_MS
+          : REPLY_QUIET_MS;
+      settleTimerRef.current = window.setTimeout(() => {
+        settleTimerRef.current = null;
+        if (awaitingAfterRef.current === undefined) return;
+        const settled = getShlawpThread();
+        if (settled.isRunning || settled.assistantFailed) return;
+        const reply = settled.assistantText;
+        if (!reply) return;
+        awaitingAfterRef.current = undefined;
+        setCaption({ from: "shlawp", text: reply });
+        setPhase("speaking");
+        void speak(reply).finally(() => {
+          setPhase((current) => (current === "speaking" ? "idle" : current));
+        });
+      }, quietMs);
     } else if (sawRunRef.current && settleTimerRef.current === null) {
       // Run flag is down but the text hasn't landed. Give it a moment; a
       // later thread update with the reply re-enters above and speaks.
